@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Group Trip Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #d1d5db; padding: 10px 12px; text-align: left; vertical-align: middle; font-size: 14px; }
+        th { background-color: #1f2937; color: #f9fafb; font-weight: 600; position: sticky; top: 0; z-index: 20; }
+        .section-header td { background-color: #374151; color: #ffffff; font-weight: 700; font-size: 16px; }
+        .transport-icon { margin-right: 8px; font-size: 18px; }
+        tr:nth-child(even):not(.section-header) { background-color: #f9fafb; }
+        tr:hover:not(.section-header) { background-color: #eff6ff; }
+        .notes { min-width: 250px; max-width: 400px; white-space: normal; }
+        [contenteditable="true"] { cursor: pointer; }
+        [contenteditable="true"]:focus { background-color: #dbeafe; outline: 2px solid #3b82f6; border-radius: 2px; }
+        .header-info, .financial-section { background-color: white; padding: 24px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .tabs { border-bottom: 2px solid #d1d5db; }
+        .tab { padding: 10px 20px; cursor: pointer; border: 1px solid transparent; border-bottom: 0; transition: all 0.2s ease-in-out; }
+        .tab.active { background-color: white; border-color: #d1d5db; border-bottom: 2px solid white; border-radius: 6px 6px 0 0; font-weight: 600; color: #1d4ed8; margin-bottom: -2px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .status-select { padding: 4px 8px; border-radius: 6px; border: 1px solid #d1d5db; width: 100%; }
+        .status-confirmed { background-color: #dcfce7 !important; }
+        .status-pending { background-color: #fef9c3 !important; }
+        .status-to-book { background-color: #fee2e2 !important; }
+        .summary-card { background-color: #f9fafb; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb; }
+        .summary-card .value { font-size: 24px; font-weight: 700; }
+        .btn { padding: 8px 16px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s; font-weight: 600; text-sm; cursor: pointer; }
+        .btn-primary { background-color: #2563eb; color: white; } .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-danger { background-color: #dc2626; color: white; } .btn-danger:hover { background-color: #b91c1c; }
+        .btn-success { background-color: #16a34a; color: white; } .btn-success:hover { background-color: #15803d; }
+        .balance-positive { color: #16a34a; }
+        .balance-negative { color: #dc2626; }
+        .settlement-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-radius: 6px;
+            background-color: #f0f9ff;
+            border: 1px solid #e0f2fe;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+
+    <div class="max-w-screen-xl mx-auto">
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-4">
+            <div id="tabs-container" class="tabs flex items-center"></div>
+            <div class="flex gap-2">
+                <button id="add-trip-btn" class="btn btn-primary">Add Trip</button>
+                <button id="remove-trip-btn" class="btn btn-danger">Remove Current Trip</button>
+                <button id="export-btn" class="btn btn-success">Export to Excel (CSV)</button>
+            </div>
+        </div>
+        <div id="tab-content-container"></div>
+    </div>
+
+<script>
+    // --- DATA MODEL ---
+    let trips = [{
+        id: 'trip1',
+        name: 'Spiritual & Coastal Journey',
+        passengers: [
+            { id: 'p1', name: 'Rohan', amountPaid: 10000, paymentMethod: 'UPI' },
+            { id: 'p2', name: 'Priya', amountPaid: 12000, paymentMethod: 'Bank Transfer' },
+            { id: 'p3', name: 'Amit', amountPaid: 2000, paymentMethod: 'Cash' }
+        ],
+        expenses: [
+            { item: 'Train Tickets Delhi-Tirupati', category: 'Travel', amount: 9000, paidBy: 'p1' },
+            { item: 'Hotel in Tirupati (3 nights)', category: 'Accommodation', amount: 6000, paidBy: 'p2' },
+            { item: 'Food & Local Travel', category: 'Food', amount: 4500, paidBy: 'p1' },
+            { item: 'Jeep to Dhanushkodi', category: 'Activity', amount: 1500, paidBy: 'p3' },
+        ],
+        itinerary: [
+            { type: 'header', title: 'Part 1: Spiritual South (16th Oct - 25th Oct)' },
+            { id: 'i1', date: 'Oct 16', from: 'New Delhi (NDLS)', to: 'Tirupati (TPTY)', transport: '🚆 Train', number: '12626 Kerala Express', pnr: '[Enter PNR]', departs: '20:10', arrives: '-', notes: '<strong>Journey Begins!</strong> Settle in.', status: 'Confirmed' },
+            { id: 'i2', date: 'Oct 18', from: 'Tirupati (TPTY)', to: 'Tirupati', transport: '🚆 Train', number: '12626', pnr: '[Enter PNR]', departs: '-', arrives: '13:40', notes: 'Arrival in Tirupati. Check into hotel.', status: 'Confirmed' },
+        ]
+    }];
+    let activeTripId = trips.length > 0 ? trips[0].id : null;
+
+    // --- DOM ELEMENTS ---
+    const tabsContainer = document.getElementById('tabs-container');
+    const tabContentContainer = document.getElementById('tab-content-container');
+    const addTripBtn = document.getElementById('add-trip-btn');
+    const removeTripBtn = document.getElementById('remove-trip-btn');
+    const exportBtn = document.getElementById('export-btn');
+
+    // --- RENDER FUNCTIONS ---
+    const renderAll = () => {
+        renderTabs();
+        renderTripContent();
+    };
+
+    const renderTabs = () => {
+        tabsContainer.innerHTML = trips.map(trip => `<div class="tab ${trip.id === activeTripId ? 'active' : ''}" data-trip-id="${trip.id}">${trip.name}</div>`).join('');
+    };
+
+    const renderTripContent = () => {
+        const trip = trips.find(t => t.id === activeTripId);
+        if (!trip) {
+            tabContentContainer.innerHTML = '<div class="text-center p-8 bg-white rounded-lg shadow">No trip selected. Please add a trip.</div>';
+            return;
+        }
+
+        // --- HTML String Generation --- (This part is simplified for brevity)
+        const itineraryRows = trip.itinerary.map(row => {
+            if (row.type === 'header') return `<tr class="section-header"><td colspan="11">${row.title}</td></tr>`;
+            const selected = val => val === row.status ? 'selected' : '';
+            return `<tr data-id="${row.id}"><td contenteditable="true" data-field="date">${row.date}</td><td contenteditable="true" data-field="from">${row.from}</td><td contenteditable="true" data-field="to">${row.to}</td><td><span class="transport-icon">${row.transport}</span></td><td contenteditable="true" data-field="number">${row.number}</td><td contenteditable="true" class="bg-yellow-100" data-field="pnr">${row.pnr}</td><td contenteditable="true" data-field="departs">${row.departs}</td><td contenteditable="true" data-field="arrives">${row.arrives}</td><td class="notes" contenteditable="true" data-field="notes">${row.notes}</td><td class="status-${row.status.toLowerCase().replace(' ', '-')}"><select class="status-select" data-field="status"><option value="To Book" ${selected('To Book')}>To Book</option><option value="Pending" ${selected('Pending')}>Pending</option><option value="Confirmed" ${selected('Confirmed')}>Confirmed</option></select></td><td><button class="remove-itinerary-btn text-red-500 hover:text-red-700 font-bold text-lg" title="Remove Item">&times;</button></td></tr>`;
+        }).join('');
+
+        const expenseRows = trip.expenses.map((exp, index) => `<tr data-index="${index}"><td contenteditable="true" data-field="item">${exp.item}</td><td contenteditable="true" data-field="category">${exp.category}</td><td contenteditable="true" data-field="amount">${exp.amount}</td><td><select class="status-select" data-field="paidBy">${trip.passengers.map(p => `<option value="${p.id}" ${p.id === exp.paidBy ? 'selected' : ''}>${p.name}</option>`).join('')}</select></td><td><button class="remove-expense-btn text-red-500 hover:text-red-700 font-bold text-lg" title="Remove Expense">&times;</button></td></tr>`).join('');
+        const passengerRows = trip.passengers.map((p, index) => `<tr data-index="${index}"><td contenteditable="true" data-field="name">${p.name}</td><td contenteditable="true" data-field="amountPaid">${p.amountPaid}</td><td contenteditable="true" data-field="paymentMethod">${p.paymentMethod}</td><td><button class="remove-passenger-btn text-red-500 hover:text-red-700 font-bold text-lg" title="Remove Passenger">&times;</button></td></tr>`).join('');
+
+        tabContentContainer.innerHTML = `
+            <div id="${trip.id}" class="tab-content active">
+                <div class="header-info"><input type="text" value="${trip.name}" class="text-2xl font-bold text-gray-800 mb-2 w-full p-1 rounded-md" data-field="tripName"></div>
+                <div class="financial-section">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">Passenger & Financial Summary</h2>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="font-semibold mb-2">Passengers & Payments</h3>
+                            <div class="table-container"><table class="w-full min-w-0"><thead><tr><th>Name</th><th>Amount Paid (₹)</th><th>Payment Method</th><th>Action</th></tr></thead><tbody id="passenger-list">${passengerRows}</tbody></table></div>
+                            <button id="add-passenger-btn" class="btn btn-primary mt-2">Add Passenger</button>
+                        </div>
+                        <div id="financial-summary-container">
+                             <!-- Financial summary will be rendered here by its function -->
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-5 bg-white p-6 rounded-lg shadow"><h2 class="text-xl font-bold text-gray-800 mb-4">Trip Itinerary</h2><div class="table-container"><table style="min-width: 1400px;"><thead><tr><th>Date</th><th>From</th><th>To</th><th>Transport</th><th>Train/Bus No.</th><th>PNR / Ref #</th><th>Departs</th><th>Arrives</th><th class="notes">Notes</th><th>Booking Status</th><th>Action</th></tr></thead><tbody id="itinerary-list">${itineraryRows}</tbody></table></div><button id="add-itinerary-btn" class="btn btn-primary mt-4">Add Itinerary Item</button></div>
+                <div class="financial-section mt-5"><h2 class="text-xl font-bold text-gray-800 mb-4">Expense Tracker</h2><div class="table-container"><table class="w-full min-w-0"><thead><tr><th>Item</th><th>Category</th><th>Amount (₹)</th><th>Paid By</th><th>Action</th></tr></thead><tbody id="expense-list">${expenseRows}</tbody></table></div><button id="add-expense-btn" class="btn btn-primary mt-2">Add Expense</button></div>
+            </div>`;
+        updateFinancialSummary();
+    };
+    
+    const updateFinancialSummary = () => {
+        const trip = trips.find(t => t.id === activeTripId);
+        const containerEl = document.getElementById('financial-summary-container');
+        if (!trip || !containerEl) return;
+
+        // --- FINANCIAL CALCULATIONS ---
+        const totalSpent = trip.expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+        const passengerCount = trip.passengers.length || 1;
+        const costPerPerson = totalSpent / passengerCount;
+
+        const balances = trip.passengers.map(p => ({
+            ...p,
+            balance: (parseFloat(p.amountPaid) || 0) - costPerPerson
+        }));
+
+        let debtors = balances.filter(p => p.balance < 0).sort((a, b) => a.balance - b.balance);
+        let creditors = balances.filter(p => p.balance > 0).sort((a, b) => b.balance - a.balance);
+        
+        const settlements = [];
+        while (debtors.length > 0 && creditors.length > 0) {
+            let debtor = debtors[0];
+            let creditor = creditors[0];
+            let amountToSettle = Math.min(Math.abs(debtor.balance), creditor.balance);
+
+            settlements.push({
+                from: debtor.name,
+                to: creditor.name,
+                amount: amountToSettle.toFixed(2)
+            });
+
+            debtor.balance += amountToSettle;
+            creditor.balance -= amountToSettle;
+
+            if (Math.abs(debtor.balance) < 0.01) debtors.shift();
+            if (creditor.balance < 0.01) creditors.shift();
+        }
+
+        // --- RENDER HTML ---
+        const passengerBalancesHTML = balances.map(p => `<div class="flex justify-between items-center p-2 rounded ${p.balance >= 0 ? 'bg-green-50' : 'bg-red-50'}"><span>${p.name} Balance:</span><span class="font-semibold ${p.balance >= 0 ? 'balance-positive' : 'balance-negative'}">${p.balance >= 0 ? 'Gets back ₹' : 'Owes ₹'}${Math.abs(p.balance).toFixed(2)}</span></div>`).join('');
+        const settlementsHTML = settlements.length > 0 ? settlements.map(s => `<div class="settlement-item"><span class="font-semibold text-red-600">${s.from}</span><span>pays →</span><span class="font-semibold text-green-600">${s.to}</span><span class="font-bold text-blue-700">₹${s.amount}</span></div>`).join('') : '<p class="text-center text-gray-500 p-4">All expenses are settled!</p>';
+
+        containerEl.innerHTML = `
+            <h3 class="font-semibold mb-2">Trip Financial Overview</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                <div class="summary-card"><div class="text-sm font-medium text-gray-500">Total Cost</div><div class="value text-red-600">₹${totalSpent.toFixed(2)}</div></div>
+                <div class="summary-card"><div class="text-sm font-medium text-gray-500">Passengers</div><div class="value text-gray-600">${passengerCount}</div></div>
+                <div class="summary-card"><div class="text-sm font-medium text-gray-500">Cost/Person</div><div class="value text-blue-600">₹${costPerPerson.toFixed(2)}</div></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h4 class="font-semibold mt-4 mb-2">Passenger Balances</h4>
+                    <div class="space-y-1">${passengerBalancesHTML}</div>
+                </div>
+                <div>
+                    <h4 class="font-semibold mt-4 mb-2">How to Settle Up</h4>
+                    <div class="space-y-2">${settlementsHTML}</div>
+                </div>
+            </div>`;
+    };
+
+    // --- EVENT HANDLING (using delegation) ---
+    tabsContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab')) {
+            activeTripId = e.target.dataset.tripId;
+            renderAll();
+        }
+    });
+
+    tabContentContainer.addEventListener('click', (e) => {
+        const trip = trips.find(t => t.id === activeTripId);
+        if (!trip) return;
+
+        let changed = false;
+        if (e.target.id === 'add-passenger-btn') {
+            trip.passengers.push({ id: 'p' + Date.now(), name: 'New Passenger', amountPaid: 0, paymentMethod: 'Cash' });
+            changed = true;
+        } else if (e.target.classList.contains('remove-passenger-btn')) {
+            trip.passengers.splice(e.target.closest('tr').dataset.index, 1);
+            changed = true;
+        } else if (e.target.id === 'add-expense-btn') {
+            trip.expenses.push({ item: 'New Expense', category: 'Misc', amount: 0, paidBy: trip.passengers[0]?.id || '' });
+            changed = true;
+        } else if (e.target.classList.contains('remove-expense-btn')) {
+            trip.expenses.splice(e.target.closest('tr').dataset.index, 1);
+            changed = true;
+        } else if (e.target.id === 'add-itinerary-btn') {
+            trip.itinerary.push({ id: 'i' + Date.now(), date: 'New Date', from: '', to: '', transport: '✈️ Flight', number: '', pnr: '', departs: '', arrives: '', notes: '', status: 'To Book' });
+            changed = true;
+        } else if (e.target.classList.contains('remove-itinerary-btn')) {
+            const rowId = e.target.closest('tr').dataset.id;
+            trip.itinerary = trip.itinerary.filter(item => item.id !== rowId);
+            changed = true;
+        }
+        
+        if (changed) renderTripContent();
+    });
+
+    tabContentContainer.addEventListener('input', (e) => { // Handles contenteditable and text inputs
+        const trip = trips.find(t => t.id === activeTripId);
+        if (!trip) return;
+
+        const field = e.target.dataset.field;
+        if (field === 'tripName') {
+            trip.name = e.target.value;
+            renderTabs();
+        } else if (e.target.closest('#passenger-list')) {
+            const index = e.target.closest('tr').dataset.index;
+            trip.passengers[index][field] = e.target.textContent;
+        } else if (e.target.closest('#expense-list')) {
+            const index = e.target.closest('tr').dataset.index;
+            trip.expenses[index][field] = e.target.textContent;
+        } else if (e.target.closest('#itinerary-list')) {
+            const id = e.target.closest('tr').dataset.id;
+            const item = trip.itinerary.find(i => i.id === id);
+            if (item) item[field] = e.target.textContent;
+        }
+        updateFinancialSummary();
+    });
+    
+    tabContentContainer.addEventListener('change', (e) => { // Handles select dropdowns
+        const trip = trips.find(t => t.id === activeTripId);
+        if (!trip) return;
+        
+        const field = e.target.dataset.field;
+        if (field === 'paidBy') {
+            const index = e.target.closest('tr').dataset.index;
+            trip.expenses[index].paidBy = e.target.value;
+        } else if (field === 'status') {
+             const id = e.target.closest('tr').dataset.id;
+             const item = trip.itinerary.find(i => i.id === id);
+             if (item) {
+                item.status = e.target.value;
+                e.target.parentElement.className = `status-${item.status.toLowerCase().replace(' ', '-')}`;
+             }
+        }
+    });
+
+    addTripBtn.addEventListener('click', () => {
+        const newTripId = 'trip' + Date.now();
+        trips.push({ id: newTripId, name: 'New Trip', passengers: [], expenses: [], itinerary: [] });
+        activeTripId = newTripId;
+        renderAll();
+    });
+
+    removeTripBtn.addEventListener('click', () => {
+        if (trips.length <= 1) return alert("Cannot remove the last trip.");
+        if (confirm(`Are you sure you want to remove the trip: "${trips.find(t=>t.id===activeTripId).name}"?`)) {
+            trips = trips.filter(t => t.id !== activeTripId);
+            activeTripId = trips.length > 0 ? trips[0].id : null;
+            renderAll();
+        }
+    });
+
+    // --- CSV EXPORT ---
+    const formatCsvCell = (cellData) => {
+        let cell = cellData === null || cellData === undefined ? '' : String(cellData);
+        cell = cell.replace(/<[^>]*>?/gm, '');
+        if (cell.search(/("|,|\n)/g) >= 0) cell = `"${cell.replace(/"/g, '""')}"`;
+        return cell;
+    };
+
+    exportBtn.addEventListener('click', () => {
+        const trip = trips.find(t => t.id === activeTripId);
+        if (!trip) return;
+
+        let csvRows = [];
+        csvRows.push(["Trip Itinerary for " + trip.name]);
+        csvRows.push(["Date", "From", "To", "Transport", "Details", "PNR", "Departs", "Arrives", "Status", "Notes"]);
+        trip.itinerary.forEach(row => {
+            if (row.type === 'header') csvRows.push([formatCsvCell(row.title)]);
+            else csvRows.push([row.date, row.from, row.to, row.transport, row.number, row.pnr, row.departs, row.arrives, row.status, row.notes].map(formatCsvCell));
+        });
+
+        const totalSpent = trip.expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+        const passengerCount = trip.passengers.length || 1;
+        const costPerPerson = totalSpent / passengerCount;
+
+        csvRows.push([]);
+        csvRows.push(["Financial Summary"]);
+        csvRows.push(["Total Trip Cost", formatCsvCell(totalSpent.toFixed(2))]);
+        csvRows.push(["Cost Per Person", formatCsvCell(costPerPerson.toFixed(2))]);
+        csvRows.push([]);
+        
+        csvRows.push(["Passenger Payments & Balances"]);
+        csvRows.push(["Passenger", "Amount Paid", "Payment Method", "Balance (Paid - Cost/Person)"]);
+        trip.passengers.forEach(p => {
+            const balance = (parseFloat(p.amountPaid) || 0) - costPerPerson;
+            csvRows.push([p.name, p.amountPaid, p.paymentMethod, balance.toFixed(2)].map(formatCsvCell));
+        });
+
+        csvRows.push([]);
+        csvRows.push(["Expense Log"]);
+        csvRows.push(["Item", "Category", "Amount", "Paid By"]);
+        trip.expenses.forEach(exp => {
+            const paidByName = trip.passengers.find(p => p.id === exp.paidBy)?.name || 'N/A';
+            csvRows.push([exp.item, exp.category, exp.amount, paidByName].map(formatCsvCell));
+        });
+        
+        const csvContent = "data:text/csv;charset=utf-8," + csvRows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `${trip.name.replace(/\s/g, '_')}_plan.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    // --- INITIAL RENDER ---
+    document.addEventListener('DOMContentLoaded', renderAll);
+</script>
+</body>
+</html>
